@@ -1,0 +1,226 @@
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tibble)
+
+eigenvectors <- read.table("~/Downloads/Diacarnus_pca_pixybase_mind05_geno01_maf005_pruned.eigenvec", quote="\"", comment.char="")
+eigenvalues <- read.table("~/Downloads/Diacarnus_pca_pixybase_mind05_geno01_maf005_pruned.eigenval", quote="\"", comment.char="")
+pop_info <- read.csv("~/Downloads/pop_info.txt", sep="")
+comp <- read.table("~/Downloads/MAGs_compare_clustered_new_genomeWide_compare.tsv",
+                   header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+
+# Keep one MAG (if file has several, filter by genome ID)
+mag_id <- "odDiaEryt1.Alphaproteobacteria_5.1"
+comp_mag <- comp %>% filter(genome == mag_id)
+
+# Clean sample IDs (strip ".MAGs.dedup.q30.bam")
+comp_mag <- comp_mag %>%
+  mutate(name1_clean = str_replace(name1, "\\.MAGs\\.dedup\\.q30\\.bam$", ""),
+         name2_clean = str_replace(name2, "\\.MAGs\\.dedup\\.q30\\.bam$", ""))
+
+
+# 1 - popANI as a distance
+dist_tab <- comp_mag %>%
+  transmute(sample1 = name1_clean,
+            sample2 = name2_clean,
+            dist = 1 - popANI)
+
+# Wide distance matrix
+mat <- dist_tab %>%
+  pivot_wider(names_from = sample2, values_from = dist) %>%
+  column_to_rownames("sample1") %>%
+  as.matrix()
+
+# Ensure symmetry and zeros on diagonal
+mat[is.na(mat)] <- t(mat)[is.na(mat)]      # fill upper/lower from opposite
+mat[is.na(mat)] <- 0                      # if any remain
+mat <- (mat + t(mat)) / 2
+diag(mat) <- 0
+
+# PCoA on distance matrix
+d    <- as.dist(mat)
+pcoa <- cmdscale(d, k = 2, eig = TRUE)
+
+bac_scores <- data.frame(
+  IID = rownames(pcoa$points),
+  Bac_PC1 = pcoa$points[, 1],
+  Bac_PC2 = pcoa$points[, 2]
+)
+
+
+# Host PCA scores for same individuals
+host_scores <- eigenvectors %>%
+  select(IID, Host_PC1 = PC1, Host_PC2 = PC2, pop)
+
+combined <- host_scores %>%
+  inner_join(bac_scores, by = "IID")
+
+# Check that GW34917 is present
+combined %>% filter(IID == "GW34917")
+
+
+library(ggplot2)
+
+# (A) Bacterial ordination only
+ggplot(combined, aes(Bac_PC1, Bac_PC2, color = pop)) +
+  geom_point(alpha = 0.7) +
+  geom_point(data = subset(combined, IID == "GW34917"),
+             color = "black", size = 3, shape = 8) +
+  ggrepel::geom_text_repel(data = subset(combined, IID == "GW34917"),
+                           aes(label = IID),
+                           color = "black", size = 3) +
+  theme_minimal()
+
+# (B) Host–bacterium alignment
+ggplot(combined, aes(Host_PC1, Bac_PC1, color = pop)) +
+ geom_point(alpha = 0.7) +
+  stat_ellipse(level = 0.95) +
+  geom_point(data = subset(combined, IID == "GW34917"),
+             color = "black", size = 3, shape = 8) +
+  ggrepel::geom_text_repel(data = subset(combined, IID == "GW34917"),
+                           aes(label = IID),
+                           color = "black", size = 3) +
+  xlab("Host PC1") + ylab("MAGS PCoA1") +
+  theme_minimal()
+
+
+#Check only in the case of Poribacteria
+
+# See all genome IDs to spot Poribacteria ones
+unique(comp$genome)
+pori_ids <- c("odDiaEryt1.Poribacteria_2.1")  
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tibble)
+
+comp_pori <- comp %>%
+  filter(genome %in% pori_ids) %>%
+  mutate(
+    name1_clean = str_replace(name1, "\\.MAGs\\.dedup\\.q30\\.bam$", ""),
+    name2_clean = str_replace(name2, "\\.MAGs\\.dedup\\.q30\\.bam$", "")
+  )
+
+# 1 − popANI as distance
+dist_tab <- comp_pori %>%
+  transmute(sample1 = name1_clean,
+            sample2 = name2_clean,
+            dist = 1 - popANI)
+
+# wide matrix
+mat <- dist_tab %>%
+  pivot_wider(names_from = sample2, values_from = dist) %>%
+  column_to_rownames("sample1") %>%
+  as.matrix()
+
+# symmetrize and clean
+mat[is.na(mat)] <- t(mat)[is.na(mat)]
+mat[is.na(mat)] <- 0
+mat <- (mat + t(mat)) / 2
+diag(mat) <- 0
+
+# PCoA
+d    <- as.dist(mat)
+pcoa <- cmdscale(d, k = 2, eig = TRUE)
+
+pori_scores <- data.frame(
+  IID = rownames(pcoa$points),
+  Pori_PC1 = pcoa$points[,1],
+  Pori_PC2 = pcoa$points[,2]
+)
+
+# join with host PCA scores
+host_scores <- eigenvectors %>%
+  select(IID, Host_PC1 = PC1, Host_PC2 = PC2, pop)
+
+comb_pori <- host_scores %>%
+  inner_join(pori_scores, by = "IID")
+
+library(ggplot2)
+library(ggrepel)
+
+# Poribacteria ordination
+ggplot(comb_pori, aes(Pori_PC1, Pori_PC2, color = pop)) +
+  geom_point(alpha = 0.7) +
+  geom_point(data = subset(comb_pori, IID == "GW34917"),
+             color = "black", size = 3, shape = 8) +
+  geom_text_repel(data = subset(comb_pori, IID == "GW34917"),
+                  aes(label = IID),
+                  color = "black", size = 3) +
+  theme_minimal()
+
+ggplot(comb_pori, aes(Pori_PC1, Pori_PC2, color = pop)) +
+  geom_point(alpha = 0.7) +
+  stat_ellipse(level = 0.95) +   # 95% ellipse per pop
+  geom_point(data = subset(comb_pori, IID == "GW34917"),
+             color = "black", size = 3, shape = 8) +
+  geom_text_repel(data = subset(comb_pori, IID == "GW34917"),
+                  aes(label = IID),
+                  color = "black", size = 3) +
+  theme_minimal()
+
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tibble)
+library(ggplot2)
+library(ggrepel)
+
+# --- 1. Per-axis strength (PCoA scores) for GW34917 ----
+
+gw_pori <- comb_pori %>%
+  filter(IID == "GW34917") %>%
+  select(IID, pop, Pori_PC1, Pori_PC2)
+
+gw_pori
+
+# --- 2. Multivariate distance of GW34917 in Pori_PC1–PC2 space ----
+
+# use only Poribacteria ordination coordinates
+pori_coords <- comb_pori %>%
+  select(IID, pop, Pori_PC1, Pori_PC2)
+
+# group-wise centroid and covariance (per population)
+centers <- pori_coords %>%
+  group_by(pop) %>%
+  summarise(
+    mean_PC1 = mean(Pori_PC1),
+    mean_PC2 = mean(Pori_PC2),
+    .groups = "drop"
+  )
+
+cov_list <- pori_coords %>%
+  group_by(pop) %>%
+  summarise(
+    cov_mat = list(cov(cbind(Pori_PC1, Pori_PC2))),
+    .groups = "drop"
+  )
+
+# function to compute Mahalanobis distance of one sample to its pop centroid
+mahal_pop <- function(df) {
+  mu  <- c(df$mean_PC1[1], df$mean_PC2[1])
+  S   <- df$cov_mat[[1]]
+  x   <- as.matrix(df[, c("Pori_PC1", "Pori_PC2")])
+  d2  <- mahalanobis(x, center = mu, cov = S)
+  sqrt(d2)
+}
+
+# merge centers and covariances back, compute distance for all samples
+pori_with_dist <- pori_coords %>%
+  left_join(centers, by = "pop") %>%
+  left_join(cov_list, by = "pop") %>%
+  rowwise() %>%
+  mutate(
+    dist_pop = mahal_pop(cur_data())  # distance to own pop centroid
+  ) %>%
+  ungroup()
+
+pori_with_dist
+# extract GW34917 distance
+gw_pori_dist <- pori_with_dist %>%
+  filter(IID == "GW34917") %>%
+  select(IID, pop, Pori_PC1, Pori_PC2, dist_pop)
+
+gw_pori_dist
