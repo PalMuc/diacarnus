@@ -63,7 +63,7 @@ ggplot(summ,
        aes(x = popANI, y = genome, color = Statistic, group = genome)) +
   geom_point() +
   scale_color_manual(values = c(Mean = "red", Median = "black", Min = "blue")) +
-  coord_cartesian(xlim = c(0.94, 1.00)) +   # adjust limits if needed
+  coord_cartesian(xlim = c(0.92, 1.00)) +   # adjust limits if needed
   labs(x = "popANI", y = "Genome",
        title = "Mesophotic vs Shallow popANI (mean, median, min)") +
   theme_bw() +
