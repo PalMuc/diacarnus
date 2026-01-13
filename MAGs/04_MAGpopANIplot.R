@@ -1,62 +1,73 @@
-library(tidyverse)
+# Load packages
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
 
-# Read the tab-delimited file exported from inStrain
-# Adjust file name as needed
-df <- read.delim("~/Downloads/MAG_population_popANI_conANI_summary.tsv")
+## 1. Read inStrain compare file
+comp <- read.table("~/Downloads/MAGs_compare_clustered_new_genomeWide_compare.tsv",
+                   header = TRUE, sep = "\t", stringsAsFactors = FALSE)
 
-# Make sure pair_class is ordered as you like
-df <- df %>%
+# Clean sample names (strip .MAGs.dedup.q30.bam)
+comp <- comp %>%
   mutate(
-    pair_class = factor(pair_class,
-                        levels = c("Mesophotic", "Shallow", "Mesophotic_vs_Shallow"))
+    name1_clean = str_replace(name1, "\\.MAGs\\.dedup\\.q30\\.bam$", ""),
+    name2_clean = str_replace(name2, "\\.MAGs\\.dedup\\.q30\\.bam$", "")
   )
 
+## 2. Read pop_info (IID = sample ID, pop = Shallow / Mesophotic)
+# Adapt sep = "\t" or sep = "" depending on the actual file; this assumes whitespace / tab.
+pop_info <- read.table("~/Downloads/pop_info.txt",
+                       header = TRUE, stringsAsFactors = FALSE)
 
-df_long <- df %>%
-  select(genome, pair_class,
-         mean_popANI, median_popANI, min_popANI) %>%
-  pivot_longer(cols = c(mean_popANI, median_popANI, min_popANI),
-               names_to = "stat", values_to = "popANI")
+# Keep only the columns we need (IID, pop)
+pop_info <- pop_info[, c("IID", "pop")]
 
-all_comparissons <-ggplot(df_long, aes(x = pair_class, y = popANI, color = stat, group = stat)) +
-  geom_point(position = position_dodge(width = 0.4)) +
-  geom_line(position = position_dodge(width = 0.4)) +
-  facet_wrap(~ genome, ncol = 3) +
-  scale_color_manual(values = c(mean_popANI = "red",
-                                median_popANI = "black",
-                                min_popANI = "blue"),
-                     labels = c(mean_popANI = "Mean",
-                                median_popANI = "Median",
-                                min_popANI = "Min")) +
+## 3. Restrict metadata to samples that appear in compare file
+samples_in_comp <- unique(c(comp$name1_clean, comp$name2_clean))
+
+meta <- pop_info %>%
+  filter(IID %in% samples_in_comp)
+
+## 4. Join depths to each side of the pair and define Shallow–Mesophotic pairs
+comp2 <- comp %>%
+  left_join(meta, by = c("name1_clean" = "IID")) %>%
+  rename(depth1 = pop) %>%
+  left_join(meta, by = c("name2_clean" = "IID")) %>%
+  rename(depth2 = pop) %>%
+  mutate(pair_type = case_when(
+    depth1 == "Shallow"   & depth2 == "Mesophotic" ~ "Shallow–Mesophotic",
+    depth1 == "Mesophotic" & depth2 == "Shallow"   ~ "Shallow–Mesophotic",
+    TRUE ~ "Other"
+  )) %>%
+  filter(pair_type == "Shallow–Mesophotic")
+
+## 5. Summarise popANI per genome (mean, median, min)
+summ <- comp2 %>%
+  group_by(genome) %>%
+  summarise(
+    mean_popANI   = mean(popANI, na.rm = TRUE),
+    median_popANI = median(popANI, na.rm = TRUE),
+    min_popANI    = min(popANI, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = ends_with("popANI"),
+               names_to = "Statistic",
+               values_to = "popANI") %>%
+  mutate(Statistic = recode(Statistic,
+                            mean_popANI   = "Mean",
+                            median_popANI = "Median",
+                            min_popANI    = "Min"))
+
+## 6. Plot Mesophotic vs Shallow popANI (mean, median, min)
+ggplot(summ,
+       aes(x = popANI, y = genome, color = Statistic, group = genome)) +
+  geom_point() +
+  scale_color_manual(values = c(Mean = "red", Median = "black", Min = "blue")) +
+  coord_cartesian(xlim = c(0.94, 1.00)) +   # adjust limits if needed
+  labs(x = "popANI", y = "Genome",
+       title = "Mesophotic vs Shallow popANI (mean, median, min)") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(y = "popANI", x = "Pair class",
-       color = "Statistic",
-       title = "popANI summary statistics by genome and pair class")
-
-###Only comparsson between pops###
-
-df_mvs <- df %>%
-  filter(pair_class == "Mesophotic_vs_Shallow")
-
-# Long format for popANI
-pop_long <- df_mvs %>%
-  select(genome, mean_popANI, median_popANI, min_popANI) %>%
-  pivot_longer(cols = c(mean_popANI, median_popANI, min_popANI),
-               names_to = "stat", values_to = "popANI")
-
-ggplot(pop_long,
-       aes(x = genome, y = popANI, color = stat, group = stat)) +
-  geom_point(position = position_dodge(width = 0.5), size = 2) +
-  geom_line(position = position_dodge(width = 0.5), alpha = 0.5) +
-  coord_flip() +
-  scale_color_manual(values = c(mean_popANI = "red",
-                                median_popANI = "black",
-                                min_popANI = "blue"),
-                     labels = c(mean_popANI = "Mean",
-                                median_popANI = "Median",
-                                min_popANI = "Min")) +
-  theme_bw() +
-  labs(x = "Genome", y = "popANI",
-       color = "Statistic",
-       title = "Mesophotic vs Shallow popANI (mean, median, min)")
+  theme(
+    axis.text.y = element_text(size = 8),
+    legend.position = "right"
+  )
