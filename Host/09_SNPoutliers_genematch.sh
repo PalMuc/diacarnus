@@ -150,3 +150,7 @@ write.table(
   sep = "\t", quote = FALSE, row.names = FALSE
 )
 
+
+#K=2 was also explored to look for outliers (altoguh admixture supports only k=1), the number of SNPs was over half as large, possible inflation unrelated to actual biological processes and due to the method used?
+
+
