@@ -75,3 +75,20 @@ busco \
 
 echo "BUSCO run finished."
 
+
+#create list with only busco gene sthat are compelte in the gneome based on the previous run
+
+cd 09_busco/poribacteria_busco_bacteria_odb12/run_bacteria_odb12
+
+awk 'BEGIN{FS=OFS="\t"} !/^#/ && $2=="Complete" { 
+    s=$4; e=$5; 
+    if (s>e) {t=s; s=e; e=t}         # make sure start < end
+    print $3, s-1, e, $1             # BED: 0-based start; keep BUSCO id in 4th column
+}' full_table.tsv > busco_complete.bed
+
+#extract genemic regions (start and end positions) for the genes
+
+awk 'BEGIN{FS=OFS="\t"} {print $1 ":" $2+1 "-" $3}' busco_complete.bed > busco_complete.regions
+
+
+
