@@ -19,6 +19,9 @@ eigenvectors <- eigenvectors %>%
 
 eigenvectors$pop <- factor(eigenvectors$pop)
 
+pc1_lab <- paste0("PC1 (", round(100 * eigenvalues[1, 1] / sum(eigenvalues[, 1]), 1), "%)")
+pc2_lab <- paste0("PC2 (", round(100 * eigenvalues[2, 1] / sum(eigenvalues[, 1]), 1), "%)")
+
 ggplot(eigenvectors, aes(x = PC1, y = PC2, color = pop)) +
   geom_point(alpha = 0.7) +
   stat_ellipse(level = 0.95, linewidth = 0.7) +  # use linewidth, not size
