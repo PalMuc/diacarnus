@@ -93,7 +93,7 @@ write_tsv(comp2, "comparisonsTable_with_MAG_and_depth.tsv")
 comp_SM <- comp2 %>%
   filter(pair_type == "Shallow–Mesophotic") %>%
   filter(percent_genome_compared >= 0,       # ommit non-comparisons
-         compared_bases_count >= 1000)   # and at least 1000 bases
+         compared_bases_count >= 10000)   # and at least 10000 bases
 
 write_tsv(comp_SM, "comparisonsTable_Shallow_Mesophotic.tsv")
 
