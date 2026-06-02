@@ -183,7 +183,7 @@ ggsave(
 )
 
 
-threshold <- 0.999  # 99.9%
+threshold <- 0.9995  # 99.95%
 
 mags_below_any <- summ %>%
   filter(
@@ -194,5 +194,5 @@ mags_below_any <- summ %>%
 
 write_tsv(
   mags_below_any,
-  "MAGs_with_any_Shallow_Mesophotic_popANI_below_99.9_min6pairs.tsv"
+  "MAGs_with_any_Shallow_Mesophotic_popANI_below_99.95_min6pairs.tsv"
 )
