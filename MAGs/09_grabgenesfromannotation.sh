@@ -14,9 +14,10 @@ echo "Using scaffold->MAG mapping: $STB"
 echo "Using annotations from:       $ANN_DIR"
 echo
 
-# ---- STEP 1: scaffold lists per focal MAG ----
-# Adjust MAG names if needed to match exactly the IDs in MAGs_new.scaff2mag.stb
+mkdir -p "$OUT_DIR/scaffolds" "$OUT_DIR/genes_bed"
 
+# ---- STEP 1: scaffold lists per focal MAG ----
+# Keys are short labels, values are the MAG IDs as they appear in the stb file
 declare -A MAGS
 MAGS["Acidimicrobiales_1.1"]="odDiaEryt1.Acidimicrobiales_1.1.primary"
 MAGS["Arenicellales_2.1"]="odDiaEryt1.Arenicellales_2.1.primary"
@@ -27,21 +28,18 @@ MAGS["Porisulfidus_1.1"]="odDiaEryt1.Porisulfidus_sp_1.1.primary"
 MAGS["Porisulfidus_1.1_rep2"]="odDiaEryt1.Porisulfidus_sp_1.1.primary.rep2"
 
 echo "== Step 1: extracting scaffold lists per MAG =="
-mkdir -p "$OUT_DIR/scaffolds"
 
 for key in "${!MAGS[@]}"; do
     mag_id="${MAGS[$key]}"
     out_scaff="$OUT_DIR/scaffolds/${key}.scaffolds.txt"
     echo "  MAG $key  (ID: $mag_id) -> $out_scaff"
-    # Assuming stb format: scaffold<TAB>MAG_ID  or MAG_ID somewhere on the line
+    # Assuming stb format: scaffold<TAB>MAG_ID
     grep -F "$mag_id" "$STB" | awk '{print $1}' > "$out_scaff"
     echo "    $(wc -l < "$out_scaff") scaffolds written"
 done
 
 echo
 echo "== Step 2: generating gene BED files from Bakta GFFs =="
-
-mkdir -p "$OUT_DIR/genes_bed"
 
 # Function to build BED from a given GFF
 build_bed () {
@@ -69,7 +67,6 @@ build_bed () {
     echo "    $(wc -l < "$out_bed") CDS entries written"
 }
 
-# Call build_bed for each GFF
 build_bed "$ANN_DIR/odDiaEryt1.Acidimicrobiales_1.1.primary.bakta.gff3"       "Acidimicrobiales_1.1"
 build_bed "$ANN_DIR/odDiaEryt1.Arenicellales_2.1.primary.bakta.gff3"           "Arenicellales_2.1"
 build_bed "$ANN_DIR/odDiaEryt1.Latescibacterota_1.1.primary.bakta.gff3"       "Latescibacterota_1.1"
@@ -79,5 +76,6 @@ build_bed "$ANN_DIR/odDiaEryt1.Porisulfidus_sp_1.1.primary.bakta.gff3"        "P
 build_bed "$ANN_DIR/odDiaEryt1.Porisulfidus_sp_1.1.primary.rep2.bakta.gff3"   "Porisulfidus_1.1_rep2"
 
 echo
-echo "Done. Scaffold lists are in: $OUT_DIR/scaffolds/"
-echo "Gene BED files are in:       $OUT_DIR/genes_bed/"
+echo "Done."
+echo "  Scaffold lists in: $OUT_DIR/scaffolds/"
+echo "  Gene BED files in: $OUT_DIR/genes_bed/"
