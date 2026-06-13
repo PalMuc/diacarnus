@@ -2,85 +2,115 @@
 set -euo pipefail
 
 BASE_DIR="/home/lvilleg/Diacarnus_0526"
-STB="$BASE_DIR/04_inStrain_46MAGS/MAGs_new.scaff2mag.stb"
-ANN_DIR="$BASE_DIR/07_MAGS_genes/annotation"
-OUT_DIR="$BASE_DIR/07_MAGS_genes"
+STB="${BASE_DIR}/04_inStrain_46MAGS/MAGs_new.scaff2mag.stb"
+OUT_SCAFF="${BASE_DIR}/07_MAGS_genes/scaffolds"
 
-cd "$BASE_DIR"
+mkdir -p "$OUT_SCAFF"
 
-echo "Using scaffold->MAG mapping: $STB"
-echo "Using annotations from:       $ANN_DIR"
-echo
+echo "Using STB: $STB"
+echo "Writing scaffold lists to: $OUT_SCAFF"
 
-mkdir -p "$OUT_DIR/scaffolds" "$OUT_DIR/genes_bed"
+# Each block: grep MAG ID, strip MAG ID from end of line to get scaffold name
 
-# MAG IDs as they appear at the END of each line in MAGs_new.scaff2mag.stb
-declare -A MAGS
-MAGS["Acidimicrobiales_1.1"]="odDiaEryt1.Acidimicrobiales_1.1"
-MAGS["Arenicellales_2.1"]="odDiaEryt1.Arenicellales_2.1"
-MAGS["Latescibacterota_1.1"]="odDiaEryt1.Latescibacterota_1.1"
-MAGS["Poribacteria_1.1"]="odDiaEryt1.Poribacteria_1.1"
-MAGS["Poribacteria_3.1"]="odDiaEryt1.Poribacteria_3.1"
-MAGS["Porisulfidus_1.1"]="odDiaEryt1.Porisulfidus_sp_1.1"
-MAGS["Porisulfidus_1.1_rep2"]="odDiaEryt1.Porisulfidus_sp_1.1"
+# Acidimicrobiales_1.1
+grep "odDiaEryt1.Acidimicrobiales_1.1" "$STB" \
+  | sed 's/odDiaEryt1.Acidimicrobiales_1.1$//' \
+  > "${OUT_SCAFF}/Acidimicrobiales_1.1.scaffolds.txt"
 
-echo "== Step 1: extracting scaffold lists per MAG =="
+# Arenicellales_2.1
+grep "odDiaEryt1.Arenicellales_2.1" "$STB" \
+  | sed 's/odDiaEryt1.Arenicellales_2.1$//' \
+  > "${OUT_SCAFF}/Arenicellales_2.1.scaffolds.txt"
 
-for key in "${!MAGS[@]}"; do
-    mag_id="${MAGS[$key]}"
-    out_scaff="$OUT_DIR/scaffolds/${key}.scaffolds.txt"
+# Latescibacterota_1.1
+grep "odDiaEryt1.Latescibacterota_1.1" "$STB" \
+  | sed 's/odDiaEryt1.Latescibacterota_1.1$//' \
+  > "${OUT_SCAFF}/Latescibacterota_1.1.scaffolds.txt"
 
-    echo "  MAG $key  (ID suffix: $mag_id) -> $out_scaff"
+# Poribacteria_1.1
+grep "odDiaEryt1.Poribacteria_1.1" "$STB" \
+  | sed 's/odDiaEryt1.Poribacteria_1.1$//' \
+  > "${OUT_SCAFF}/Poribacteria_1.1.scaffolds.txt"
 
-    grep -F "$mag_id" "$STB" \
-      | sed "s/${mag_id}$//" \
-      | sort -u > "$out_scaff"
+# Poribacteria_3.1
+grep "odDiaEryt1.Poribacteria_3.1" "$STB" \
+  | sed 's/odDiaEryt1.Poribacteria_3.1$//' \
+  > "${OUT_SCAFF}/Poribacteria_3.1.scaffolds.txt"
 
-    echo "    $(wc -l < "$out_scaff") scaffolds written"
+# Porisulfidus_sp_1.1
+grep "odDiaEryt1.Porisulfidus_sp_1.1" "$STB" \
+  | sed 's/odDiaEryt1.Porisulfidus_sp_1.1$//' \
+  > "${OUT_SCAFF}/Porisulfidus_1.1.scaffolds.txt"
+
+# Pseudomonadales_3.1
+grep "odDiaEryt1.Pseudomonadales_3.1" "$STB" \
+  | sed 's/odDiaEryt1.Pseudomonadales_3.1$//' \
+  > "${OUT_SCAFF}/Pseudomonadales_3.1.scaffolds.txt"
+
+echo "Line counts in scaffold files:"
+wc -l "${OUT_SCAFF}"/*.scaffolds.txt
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_DIR="/home/lvilleg/Diacarnus_0526"
+OUT_SCAFF="${BASE_DIR}/07_MAGS_genes/scaffolds"
+
+# Rewrite each existing scaffold file into BED: contig, 0, big_end
+for f in "${OUT_SCAFF}"/*.scaffolds.txt; do
+  tmp="${f}.bedtmp"
+  echo "Rewriting $(basename "$f") to BED format"
+  awk 'NF>0{OFS="\t"; print $1, 0, 1000000000000}' "$f" > "$tmp"
+  mv "$tmp" "$f"
 done
 
+echo "Preview Acidimicrobiales_1.1.scaffolds.txt:"
+head -n 3 "${OUT_SCAFF}/Acidimicrobiales_1.1.scaffolds.txt"
+
+
+module load gnu/12
+module load samtools
+
+BASE_DIR="/home/lvilleg/Diacarnus_0526"
+BAM_DIR="${BASE_DIR}/03_mapping_MAGs/dedup_q30"
+SCAFF_DIR="${BASE_DIR}/07_MAGS_genes/scaffolds"
+OUT_DIR="${BASE_DIR}/03_mapping_MAGs/dedup_q30_byMAG"
+
+mkdir -p "$OUT_DIR"
+
+MAGS=("Acidimicrobiales_1.1" \
+      "Arenicellales_2.1" \
+      "Latescibacterota_1.1" \
+      "Poribacteria_1.1" \
+      "Poribacteria_3.1" \
+      "Porisulfidus_1.1" \
+      "Pseudomonadales_3.1")
+
+echo "Input BAM dir:  $BAM_DIR"
+echo "Scaffold lists: $SCAFF_DIR"
+echo "Output BAM dir: $OUT_DIR"
 echo
-echo "== Step 2: generating gene BED files from Bakta GFFs =="
 
-build_bed () {
-    local gff="$1"
-    local label="$2"
-    local out_bed="$OUT_DIR/genes_bed/${label}.genes.bed"
+for bam in "${BAM_DIR}"/GW*.MAGs.dedup.q30.bam; do
+  sample=$(basename "$bam" .MAGs.dedup.q30.bam)
+  echo "Processing sample: $sample  ($(date))"
 
-    echo "  GFF: $gff"
-    echo "  BED: $out_bed"
+  for mag in "${MAGS[@]}"; do
+    scaff_file="${SCAFF_DIR}/${mag}.scaffolds.txt"
+    out_bam="${OUT_DIR}/${sample}.${mag}.dedup.q30.bam"
 
-    grep -v '^#' "$gff" \
-      | awk -F '\t' '
-        $3=="CDS" {
-          OFS="\t"
-          id="."
-          n=split($9, a, ";")
-          for (i=1; i<=n; i++) {
-            if (a[i] ~ /^ID=/) {
-              sub(/^ID=/, "", a[i])
-              id=a[i]
-            }
-          }
-          print $1, $4-1, $5, id
-        }
-      ' > "$out_bed"
+    if [ ! -s "$scaff_file" ]; then
+      echo "  [WARN] Scaffold file missing or empty for MAG $mag: $scaff_file"
+      continue
+    fi
 
-    echo "    $(wc -l < "$out_bed") CDS entries written"
-}
+    echo "  Subsetting MAG $mag -> $(basename "$out_bam")"
 
-build_bed "$ANN_DIR/odDiaEryt1.Acidimicrobiales_1.1.primary.bakta.gff3"     "Acidimicrobiales_1.1"
-build_bed "$ANN_DIR/odDiaEryt1.Arenicellales_2.1.primary.bakta.gff3"         "Arenicellales_2.1"
-build_bed "$ANN_DIR/odDiaEryt1.Latescibacterota_1.1.primary.bakta.gff3"      "Latescibacterota_1.1"
-build_bed "$ANN_DIR/odDiaEryt1.Poribacteria_1.1.primary.bakta.gff3"          "Poribacteria_1.1"
-build_bed "$ANN_DIR/odDiaEryt1.Poribacteria_3.1.primary.bakta.gff3"          "Poribacteria_3.1"
-build_bed "$ANN_DIR/odDiaEryt1.Porisulfidus_sp_1.1.primary.bakta.gff3"       "Porisulfidus_1.1"
-build_bed "$ANN_DIR/odDiaEryt1.Porisulfidus_sp_1.1.primary.rep2.bakta.gff3"  "Porisulfidus_1.1_rep2"
+    samtools view -@ "$SLURM_CPUS_PER_TASK" -b -L "$scaff_file" "$bam" > "$out_bam"
+    samtools index "$out_bam"
+  done
 
-echo
-echo "Done."
-echo "Scaffold lists:"
-ls -1 "$OUT_DIR/scaffolds"
-echo
-echo "Gene BED files:"
-ls -1 "$OUT_DIR/genes_bed"
+  echo
+done
+
+echo "Done at $(date)"
