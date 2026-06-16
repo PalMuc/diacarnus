@@ -1,4 +1,4 @@
-setwd("/home/lvilleg/Diacarnus_0526/04_inStrain_new/MAG_compare_new/MAGs_compare_clustered_new/output")
+setwd("/home/lvilleg/Diacarnus_0526/04_inStrain_46MAGS/MAG_compare_new/MAGs_compare_clustered_new/output")
 
 cmp <- read.table("MAGs_compare_clustered_new_genomeWide_compare.tsv",
                   header = TRUE, sep = "\t", stringsAsFactors = FALSE)
