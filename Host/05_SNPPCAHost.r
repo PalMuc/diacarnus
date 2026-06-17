@@ -108,3 +108,13 @@ p_pc2 <- ggplot(eigenvectors, aes(x = depth, y = PC2, fill = depth)) +
 
 print(p_pc1)
 print(p_pc2)
+
+#Aditional testing using PERMANOVA
+# host_dist_full: matrix of Euclidean distances in PCA space
+host_dist <- as.dist(host_dist_full)
+
+depth <- eigenvectors$pop  # shallow/mesophotic matched by IID order
+
+permanova_host <- adonis2(host_dist ~ depth, permutations = 9999)
+permanova_host
+
