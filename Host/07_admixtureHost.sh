@@ -1,74 +1,113 @@
-module load gnu/12
-source ~/.bashrc
-conda activate ngs-core    # plink + admixture here
 
-# ---- Paths ----
-WORKDIR=/home/lvilleg/Diacarnus/03_mapping/dedup_q30
-OUTDIR=/home/lvilleg/Diacarnus/05_admixture
+
+WORKDIR=/home/lvilleg/Diacarnus_0526/03_mapping/dedup_q30
 VCF=${WORKDIR}/host_freebayes.allsites.filtered.pixy_ready.vcf.gz
 
-mkdir -p "${OUTDIR}"
-cd "${OUTDIR}"
+OUT_PLINK=/home/lvilleg/Diacarnus_0526/05_admixture_mind02_intchr_full
+OUT_STRUCT=/home/lvilleg/Diacarnus_0526/06_structure_mind02_intchr_full
 
-# ---- Prefixes ----
-BASE=Diacarnus_admixbase        # VCF -> PLINK
-MIND=Diacarnus_admix_mind       # missingness-filtered
-REN=Diacarnus_admix_renamed     # unique SNP IDs
-PRUNE=Diacarnus_admix_prune     # LD pruning info
-LDSET=Diacarnus_admix_ld        # LD-pruned dataset (orig chrom names)
-INT=Diacarnus_admix_ld_int      # LD-pruned dataset with integer chromosomes
+mkdir -p "${OUT_PLINK}" "${OUT_STRUCT}"
 
-echo "### 1) VCF -> PLINK (if needed)"
-if [ ! -f ${BASE}.bed ]; then
-  plink --vcf "${VCF}" \
-        --double-id \
-        --allow-extra-chr \
-        --make-bed \
-        --out ${BASE}
-fi
+module load gnu/12
+source ~/.bashrc
+conda activate ngs-core
 
-echo "### 2) Filter individuals by missingness (mind 0.5)"
-if [ ! -f ${MIND}.bed ]; then
-  plink --bfile ${BASE} \
-        --allow-extra-chr \
-        --mind 0.5 \
-        --make-bed \
-        --out ${MIND}
-fi
+cd "${WORKDIR}"
 
-echo "### 3) Rename SNPs to unique IDs"
-if [ ! -f ${REN}.bed ]; then
-  awk 'BEGIN{OFS="\t"} { $2 = "SNP" NR; print }' ${MIND}.bim > ${REN}.bim
-  cp ${MIND}.bed ${REN}.bed
-  cp ${MIND}.fam ${REN}.fam
-fi
+echo "## STEP 1: VCF -> PLINK binary (all individuals)"
+plink \
+  --vcf "${VCF}" \
+  --make-bed \
+  --double-id \
+  --allow-extra-chr \
+  --out "${OUT_PLINK}/Diacarnus0526_all"
 
-echo "### 4) LD pruning on renamed SNPs"
-plink --bfile ${REN} \
-      --allow-extra-chr \
-      --indep-pairwise 50 10 0.2 \
-      --out ${PRUNE}
+echo "## STEP 2: basic SNP QC with --mind 0.2 (keep most individuals)"
+plink \
+  --bfile "${OUT_PLINK}/Diacarnus0526_all" \
+  --geno 0.1 \
+  --mind 0.2 \
+  --maf 0.05 \
+  --allow-extra-chr \
+  --make-bed \
+  --out "${OUT_PLINK}/Diacarnus0526_all_filt_mind02"
 
+# Optional: per-individual missingness report for QC
+plink \
+  --bfile "${OUT_PLINK}/Diacarnus0526_all" \
+  --missing \
+  --allow-extra-chr \
+  --out "${OUT_PLINK}/Diacarnus0526_all_missing"
 
-      plink --bfile ${REN} \
-      --allow-extra-chr \
-      --extract ${PRUNE}.prune.in \
-      --make-bed \
-      --out ${LDSET}
+echo "Individuals before/after filtering:"
+wc -l "${OUT_PLINK}/Diacarnus0526_all.fam"
+wc -l "${OUT_PLINK}/Diacarnus0526_all_filt_mind02.fam"
 
-echo "### 5) Force chromosome codes to integers for ADMIXTURE"
-# Here we simply number chromosomes 1..N in the order they appear
-awk 'BEGIN{OFS="\t"} { $1 = NR; print }' ${LDSET}.bim > ${INT}.bim
-cp ${LDSET}.bed ${INT}.bed
-cp ${LDSET}.fam ${INT}.fam
+echo "## STEP 3: LD pruning"
+plink \
+  --bfile "${OUT_PLINK}/Diacarnus0526_all_filt_mind02" \
+  --indep-pairwise 50 5 0.2 \
+  --allow-extra-chr \
+  --out "${OUT_PLINK}/Diacarnus0526_ldprune_mind02"
 
-INT_FINAL=${INT}
+plink \
+  --bfile "${OUT_PLINK}/Diacarnus0526_all_filt_mind02" \
+  --extract "${OUT_PLINK}/Diacarnus0526_ldprune_mind02.prune.in" \
+  --allow-extra-chr \
+  --make-bed \
+  --out "${OUT_PLINK}/Diacarnus0526_admix_ld_mind02"
 
-echo "### 6) Run ADMIXTURE K=1 ^`^s4"
+echo "Individuals in LD-pruned dataset:"
+wc -l "${OUT_PLINK}/Diacarnus0526_admix_ld_mind02.fam"
+
+###########################################
+# 4) Fix chromosome codes for ADMIXTURE   #
+###########################################
+
+cd "${OUT_PLINK}"
+
+BASE=Diacarnus0526_admix_ld_mind02
+INT=${BASE}.intchr
+
+echo "## STEP 4: Create ADMIXTURE-ready PLINK files with integer chr codes"
+
+# Rewrite chr codes to 1..N for ADMIXTURE (only BIM first column)
+awk 'BEGIN{OFS="\t"} { $1 = NR; print }' ${BASE}.bim > ${INT}.bim
+cp ${BASE}.bed ${INT}.bed
+cp ${BASE}.fam ${INT}.fam
+
+echo "Sanity check on INTCHR dataset:"
+wc -l ${INT}.fam
+head -n 5 ${INT}.bim
+
+###########################################
+# 5) PLINK -> STRUCTURE export (optional) #
+###########################################
+
+plink \
+  --bfile ${BASE} \
+  --allow-extra-chr \
+  --recode structure \
+  --out Diacarnus0526_for_structure_diploid_mind02_intchrbase
+
+cp Diacarnus0526_for_structure_diploid_mind02_intchrbase.recode.strct_in "${OUT_STRUCT}/"
+
+###########################################
+# 6) Run ADMIXTURE K=1–4 on INTCHR set   #
+###########################################
+
+echo "## STEP 6: Run ADMIXTURE K=1–4 with ${SLURM_CPUS_PER_TASK} threads on ${INT}"
+
 for K in 1 2 3 4; do
   echo "Running ADMIXTURE K=${K}"
-  admixture --cv=10 -j${SLURM_CPUS_PER_TASK} ${INT_FINAL}.bed ${K} | tee ${INT_FINAL}.K${K}.log
+  admixture --cv=10 -j${SLURM_CPUS_PER_TASK} ${INT}.bed ${K} \
+    | tee ${INT}.K${K}.log
 done
 
-echo "All done. Q/P files are ${INT_FINAL}.K.Q and ${INT_FINAL}.K.P for each K."
+echo "ADMIXTURE finished. Q/P files:"
+ls ${INT}.K*.Q ${INT}.K*.P
+
+echo "All steps complete."
+echo "PLINK/ADMIXTURE outputs are in: ${OUT_PLINK}"
+echo "STRUCTURE input is in: ${OUT_STRUCT}"
 
