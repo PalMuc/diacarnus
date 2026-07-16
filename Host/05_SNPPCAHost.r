@@ -4,6 +4,8 @@ library(dplyr)
 ## -----------------------------
 ## 1. Read input files
 ## -----------------------------
+###PCA plot is run both on the direct pca output and the LD prunned output ###
+
 eigenvectors <- read.table(
   "~/Downloads/Diacarnus_pca_mind.eigenvec",
   quote = "\"",
