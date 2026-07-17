@@ -2,7 +2,7 @@ library(tidyverse)
 library(pheatmap)
 
 ## 1. Read kinship (.kin0 only, plink2 output)
-kin <- read.table("~/Downloads/Diacarnus0526_king.kin0",
+kin <- read.table("~/Downloads/Diacarnus0526_king_OZ_nuclear.kin0",
                   header = TRUE, sep = "\t", stringsAsFactors = FALSE)
 kin$IID1    <- trimws(as.character(kin$IID1))
 kin$IID2    <- trimws(as.character(kin$IID2))
@@ -59,23 +59,32 @@ for (a in ord) for (b in ord) {
 annotation_df <- data.frame(
   Depth = depth_vec[ord],
   row.names = ord)
-
+kin_colors <- colorRampPalette(c("gray97", "gray","pink","pink3", "red4"))(100)
 ann_colors <- list(
-  Depth = c(Shallow = "#6BAED6", Mesophotic = "#7B3FA0"))
-p <- pheatmap(K_disp,
-              cluster_rows = FALSE, cluster_cols = FALSE,
-              gaps_row = gap, gaps_col = gap,
-              annotation_row = annotation_df, annotation_col = annotation_df,
-              annotation_colors = ann_colors,
-              color = kin_colors,
-              breaks = seq(0, ub, length.out = 101),
-              legend_breaks = c(0, ub/2, ub),
-              legend_labels = c("None", "Higher\nrelatedness", "Highest"),
-              na_col = "grey92", border_color = "grey85",
-              main = "",
-              fontsize = 10, fontsize_row = 8, fontsize_col = 8,
-              angle_col = 45)
+  Depth = c(Shallow = "lightblue", Mesophotic = "purple3"))
+p <- pheatmap(
+  K_disp,
+  cluster_rows = FALSE, cluster_cols = FALSE,
+  gaps_row = gap, gaps_col = gap,
+  annotation_row = annotation_df,
+  annotation_col = annotation_df,
+  annotation_colors = ann_colors,
+  annotation_names_row = FALSE,   # <– remove "Depth" label on row side
+  annotation_names_col = FALSE,   # <– remove "Depth" label on column side
+  color = kin_colors,
+  breaks = seq(0, ub, length.out = length(kin_colors) + 1),
+  legend_breaks = c(0, ub/2, ub),
+  legend_labels = c("Least related", "Mid\nrelatedness", "Highest related"),
+  na_col = "grey92",
+  border_color = "grey85",
+  display_numbers = mark,
+  number_color = "black",
+  main = "",
+  fontsize = 16,
+  fontsize_row = 8,
+  fontsize_col = 8,
+  angle_col = 45
+)
 
-pdf("king_kinship_heatmap_ordered.pdf", width = 8.5, height = 7)
-grid::grid.newpage(); grid::grid.draw(p$gtable)
-dev.off()
+p
+
