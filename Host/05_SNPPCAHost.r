@@ -7,14 +7,14 @@ library(dplyr)
 ###PCA plot is run both on the direct pca output and the LD prunned output ###
 
 eigenvectors <- read.table(
-  "~/Downloads/Diacarnus_pca_mind.eigenvec",
+  "~/Downloads/Diacarnus0526_pca_pruned_OZ_mind.eigenvec",
   quote = "\"",
   comment.char = "",
   stringsAsFactors = FALSE
 )
 
 eigenvalues <- read.table(
-  "~/Downloads/Diacarnus_pca_mind.eigenval",
+  "~/Downloads/Diacarnus0526_pca_pruned_OZ_mind.eigenval",
   quote = "\"",
   comment.char = "",
   stringsAsFactors = FALSE
@@ -63,60 +63,43 @@ pc2_lab <- paste0(
 ## -----------------------------
 ## 5. PCA plot by depth (shallow/mesophotic)
 ## -----------------------------
+
+library(ggplot2)
+library(dplyr)
+
+# Define depth colors (adjust to match your other figures)
+depth_cols <- c(
+  Shallow   = "lightblue",  # blue
+  Mesophotic = "purple3"  # green
+)
 p_pca <- ggplot(eigenvectors, aes(x = PC1, y = PC2, color = depth)) +
-  geom_point(alpha = 0.7, size = 3) +
-  stat_ellipse(level = 0.95, linewidth = 0.7) +
+  geom_point(alpha = 0.8, size = 2.8) +
+  stat_ellipse(level = 0.95, linewidth = 0.7, linetype = "solid") +
+  scale_color_manual(values = depth_cols, name = "Depth") +
   xlab(pc1_lab) +
   ylab(pc2_lab) +
-  theme_minimal()
-
-print(p_pca)
-
-## -----------------------------
-## 6. Nonparametric tests (pop = depth groups)
-## -----------------------------
-# Kruskal–Wallis (works for 2+ groups; here you have 2)
-kw_pc1 <- kruskal.test(PC1 ~ depth, data = eigenvectors)
-kw_pc2 <- kruskal.test(PC2 ~ depth, data = eigenvectors)
-
-print(kw_pc1)
-print(kw_pc2)
-
-# For two groups, also do Wilcoxon rank-sum
-wilcox_pc1 <- wilcox.test(PC1 ~ depth, data = eigenvectors, exact = FALSE)
-wilcox_pc2 <- wilcox.test(PC2 ~ depth, data = eigenvectors, exact = FALSE)
-
-print(wilcox_pc1)
-print(wilcox_pc2)
+  theme_bw(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(size = 12),
+    axis.text  = element_text(size = 10),
+    legend.position = c(0.02, 0.98),
+    legend.justification = c("left", "top"),
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.title = element_text(size = 11),
+    legend.text  = element_text(size = 10)
+  )
+p_pca
 
 ## -----------------------------
-## 7. Boxplots for interpretation
+## 6. Overall test for a depth signal across all PCs (PERMANOVA)
 ## -----------------------------
-p_pc1 <- ggplot(eigenvectors, aes(x = depth, y = PC1, fill = depth)) +
-  geom_boxplot(alpha = 0.7, outlier.shape = NA) +
-  geom_jitter(width = 0.08, alpha = 0.7) +
-  xlab("Depth (shallow vs mesophotic)") +
-  ylab(pc1_lab) +
-  theme_minimal() +
-  theme(legend.position = "none")
+library(vegan)
 
-p_pc2 <- ggplot(eigenvectors, aes(x = depth, y = PC2, fill = depth)) +
-  geom_boxplot(alpha = 0.7, outlier.shape = NA) +
-  geom_jitter(width = 0.08, alpha = 0.7) +
-  xlab("Depth (shallow vs mesophotic)") +
-  ylab(pc2_lab) +
-  theme_minimal() +
-  theme(legend.position = "none")
+# Use all retained PCs as the multivariate space
+pc_matrix <- eigenvectors[, pc_names]
+euclid    <- dist(pc_matrix, method = "euclidean")
 
-print(p_pc1)
-print(p_pc2)
-
-#Aditional testing using PERMANOVA
-# host_dist_full: matrix of Euclidean distances in PCA space
-host_dist <- as.dist(host_dist_full)
-
-depth <- eigenvectors$pop  # shallow/mesophotic matched by IID order
-
-permanova_host <- adonis2(host_dist ~ depth, permutations = 9999)
-permanova_host
-
+set.seed(1)  # reproducible permutations
+permanova <- adonis2(euclid ~ depth, data = eigenvectors, permutations = 9999)
+print(permanova)
