@@ -1,3 +1,0 @@
-#commands were run on galaxy server, this is the command that ran there
-
-mkdir -p ./database_path/amrfinderplus-db && ln -s '/data/db/data_managers/bakta_database/10522951'/* database_path && ln -s '/data/db/data_managers/amrfinderplus-db/amrfinderplus_V3.12_2024-05-02.2/' database_path/amrfinderplus-db/latest &&  bakta --verbose --threads ${GALAXY_SLOTS:-1} --db './database_path' --output 'bakta_output' --min-contig-length 1 --prefix bakta_output  --translation-table '11' --gram '?'    --skip-crispr '/data/cache07/object_store_cache/b/d/0/dataset_bd028438-a4d5-409e-9d2d-5c910a02b270.dat' | tee 'XXXX'
