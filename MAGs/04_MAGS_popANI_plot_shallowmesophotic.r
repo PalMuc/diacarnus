@@ -27,9 +27,7 @@ comp <- comp %>%
 ## 3. Read scaffold-to-bin mapping
 ##    This maps scaffold -> MAG (bin / genome)
 ## -----------------------------
-scaffold2bin <- fromJSON(
-  "~/Downloads/raw_data/scaffold2bin.json"
-)
+scaffold2bin <- fromJSON(path.expand("~/Downloads/raw_data/scaffold2bin.json"))
 
 scaffold2bin_df <- tibble(
   scaffold = names(scaffold2bin),
@@ -42,7 +40,6 @@ scaffold2bin_df <- tibble(
 comp <- comp %>%
   left_join(scaffold2bin_df, by = "scaffold")
 
-## Optional check
 cat("Rows with no genome assignment:", sum(is.na(comp$genome)), "\n")
 
 ## -----------------------------
@@ -83,24 +80,22 @@ comp2 <- comp %>%
     )
   )
 
-## Save annotated scaffold-level table
 write_tsv(comp2, "comparisonsTable_with_MAG_and_depth.tsv")
 
 ## -----------------------------
 ## 8. Keep only Shallow–Mesophotic pairs
 ## -----------------------------
-
 comp_SM <- comp2 %>%
   filter(pair_type == "Shallow–Mesophotic") %>%
-  filter(percent_genome_compared >= 0,       # ommit non-comparisons
-         compared_bases_count >= 10000)   # and at least 10000 bases
+  filter(
+    percent_genome_compared >= 0,
+    compared_bases_count >= 10000
+  )
 
 write_tsv(comp_SM, "comparisonsTable_Shallow_Mesophotic.tsv")
 
 ## -----------------------------
 ## 9. Summarise per MAG (= genome)
-##    Since raw compare is scaffold-level, this aggregates all scaffolds
-##    belonging to the same MAG
 ## -----------------------------
 summ <- comp_SM %>%
   filter(!is.na(genome)) %>%
@@ -116,6 +111,9 @@ summ <- comp_SM %>%
     mean_percent_compared = mean(percent_genome_compared, na.rm = TRUE),
     median_percent_compared = median(percent_genome_compared, na.rm = TRUE),
     .groups = "drop"
+  ) %>%
+  mutate(
+    genome = str_remove(genome, "^odDiaEryt1\\.")
   )
 
 write_tsv(summ, "Shallow_Mesophotic_MAG_summary_from_comparisonsTable.tsv")
@@ -140,9 +138,45 @@ summ_long <- summ %>%
 
 write_tsv(summ_long, "Shallow_Mesophotic_MAG_summary_long.tsv")
 
-## 11. Plot (robust version)
+## -----------------------------
+## 11. Define threshold and MAGs to highlight
+##     Keep original logic:
+##     mean_popANI < 0.9995 and at least 6 sample pairs
+## -----------------------------
+threshold <- 0.9995
 
-# 11a. Decide order of MAGs (e.g. by mean popANI)
+mags_below_any <- summ %>%
+  filter(
+    mean_popANI < threshold,
+    n_sample_pairs >= 6
+  ) %>%
+  arrange(min_popANI)
+
+write_tsv(
+  mags_below_any,
+  "MAGs_with_any_Shallow_Mesophotic_popANI_below_99.95_min6pairs.tsv"
+)
+
+low_ani_genomes <- unique(mags_below_any$genome)
+
+# Use the factor levels already in the plot
+gen_levels <- levels(summ_long_plot$genome)
+
+shade_df <- mags_below_any %>%
+  mutate(
+    genome = factor(genome, levels = gen_levels),
+    y = as.numeric(genome),
+    y_min = y - 0.5,
+    y_max = y + 0.5
+  )
+
+
+
+
+## -----------------------------
+## 12. Prepare plotting data
+##     Keep ordering by Mean to match earlier plot
+## -----------------------------
 genome_order <- summ_long %>%
   filter(Statistic == "Mean") %>%
   arrange(popANI) %>%
@@ -150,37 +184,75 @@ genome_order <- summ_long %>%
 
 summ_long_plot <- summ_long %>%
   filter(!is.na(popANI), !is.na(genome)) %>%
-  mutate(genome = factor(genome, levels = genome_order))
+  mutate(
+    genome = factor(genome, levels = genome_order),
+    below_thresh = genome %in% low_ani_genomes
+  )
 
-# 11b. Plot
-p <- ggplot(
-  summ_long_plot,
-  aes(x = popANI, y = genome, color = Statistic)
-) +
-  geom_point(size = 2, alpha = 0.9) +
-  scale_color_manual(values = c(Mean = "red", Median = "black", Min = "blue")) +
+## -----------------------------
+## 13. Publication-style plot
+## -----------------------------
+p <- ggplot() +
+  # soft shading for MAGs in mags_below_any
+  geom_rect(
+    data = shade_df,
+    aes(
+      xmin = -Inf, xmax = Inf,   # full row; or use xmin = 0.92, xmax = threshold
+      ymin = y_min, ymax = y_max
+    ),
+    fill = "grey90",
+    alpha = 0.4,
+    inherit.aes = FALSE
+  ) +
+  geom_vline(
+    xintercept = threshold,
+    linetype = "dashed",
+    color = "grey40",
+    linewidth = 0.4
+  ) +
+  geom_point(
+    data = summ_long_plot,
+    aes(
+      x = popANI,
+      y = genome,
+      color = Statistic,
+      alpha = below_thresh
+    ),
+    size = 2.2
+  ) +
+  scale_color_manual(
+    values = c(
+      Mean = "#1f78b4",
+      Median = "black",
+      Min = "#ff7f00"
+    ),
+    name = NULL
+  ) +
+  scale_alpha_manual(
+    values = c(`TRUE` = 1, `FALSE` = 0.28),
+    guide = "none"
+  ) +
   coord_cartesian(xlim = c(0.92, 1.00)) +
   labs(
-    x = "popANI",
+    x = "popANI (Shallow vs Mesophotic)",
     y = "MAG",
-    title = "Shallow vs Mesophotic popANI per MAG",
-    subtitle = "Derived from inStrain comparisonsTable.csv.gz using scaffold2bin mapping"
+    title = NULL
   ) +
-  theme_bw() +
+  theme_bw(base_size = 10) +
   theme(
-    axis.text.y = element_text(size = 8),
-    legend.position = "right"
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.y = element_text(size = 7),
+    axis.text.x = element_text(size = 8),
+    axis.title = element_text(size = 10),
+    legend.position = "right",
+    legend.title = element_text(size = 9, face = "bold"),
+    legend.text = element_text(size = 8),
+    plot.margin = margin(5.5, 10, 5.5, 5.5)
   )
 
 print(p)
 
-ggsave(
-  filename = "Shallow_Mesophotic_popANI_perMAG_from_comparisonsTable.png",
-  plot = p,
-  width = 8,
-  height = 10,
-  dpi = 300
-)
 
 
 threshold <- 0.9995  # 99.95%
