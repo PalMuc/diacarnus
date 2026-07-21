@@ -295,7 +295,7 @@ if (!is.null(df_pairs2)) {
 
 #  Thermodesulfobacteriota_1.11
 mag_to_plot3 <- "odDiaEryt1.Thermodesulfobacteriota_1.1"
-df_pairs <- get_mag_pairs(mag_to_plot, mag_dir, host_dist_full, instrain, bp_cutoff)
+df_pairs3 <- get_mag_pairs(mag_to_plot3, mag_dir, host_dist_full, instrain, bp_cutoff)
 
 if (!is.null(df_pairs)) {
   ggplot(df_pairs, aes(x = host_dist, y = ani_dist)) +
@@ -303,6 +303,6 @@ if (!is.null(df_pairs)) {
     geom_smooth(method = "lm") +
     theme_minimal()
   
-  lm_fit3 <- lm(ani_dist ~ host_dist, data = df_pairs)
+  lm_fit3 <- lm(ani_dist ~ host_dist, data = df_pairs3)
   print(summary(lm_fit3))
 }
