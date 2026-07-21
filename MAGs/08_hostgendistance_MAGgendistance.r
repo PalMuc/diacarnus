@@ -3,7 +3,7 @@ library(tidyverse)
 ## -----------------------------
 ## 1. Input files and parameters
 ## -----------------------------
-pca_file  <- "~/Downloads/Diacarnus_pca_mind.eigenvec"
+pca_file  <- "~/Downloads/Diacarnus0526_pca_pruned_OZ_mind.eigenvec"
 mag_dir   <- "~/Downloads/output"
 instrain_long_file <- file.path(mag_dir, "MAGs_compare_clustered_new_genomeWide_compare.tsv")
 
@@ -265,7 +265,7 @@ get_mag_pairs <- function(mag_id, mag_dir, host_dist_full, instrain, bp_cutoff =
 ## 8. Inspect specific MAGs with lm()
 ## =============================
 
-# Example: Dehalococcoidia_6.1
+#  Dehalococcoidia_6.1
 mag_to_plot <- "odDiaEryt1.Dehalococcoidia_6.1"
 df_pairs <- get_mag_pairs(mag_to_plot, mag_dir, host_dist_full, instrain, bp_cutoff)
 
@@ -275,11 +275,11 @@ if (!is.null(df_pairs)) {
     geom_smooth(method = "lm") +
     theme_minimal()
   
-  lm_fit <- lm(ani_dist ~ host_dist, data = df_pairs)
+  
+  lm_fit <- lm(ani_dist ~ host_dist, data = df_pairs2)
   print(summary(lm_fit))
 }
-
-# Example: Vicinamibacteria_1.1
+# Vicinamibacteria_1.1
 mag_to_plot2 <- "odDiaEryt1.Vicinamibacteria_1.1"
 df_pairs2 <- get_mag_pairs(mag_to_plot2, mag_dir, host_dist_full, instrain, bp_cutoff)
 
@@ -291,4 +291,18 @@ if (!is.null(df_pairs2)) {
   
   lm_fit2 <- lm(ani_dist ~ host_dist, data = df_pairs2)
   print(summary(lm_fit2))
+}
+
+#  Thermodesulfobacteriota_1.11
+mag_to_plot3 <- "odDiaEryt1.Thermodesulfobacteriota_1.1"
+df_pairs <- get_mag_pairs(mag_to_plot, mag_dir, host_dist_full, instrain, bp_cutoff)
+
+if (!is.null(df_pairs)) {
+  ggplot(df_pairs, aes(x = host_dist, y = ani_dist)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    theme_minimal()
+  
+  lm_fit3 <- lm(ani_dist ~ host_dist, data = df_pairs)
+  print(summary(lm_fit3))
 }
