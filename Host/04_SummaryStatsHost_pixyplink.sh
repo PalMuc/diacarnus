@@ -77,24 +77,40 @@ echo "  Diacarnus_pca_mind.eigenval  (eigenvalues)"
 
 
 
-#Summary Fst only on OZ chromosomes and no mitochondria CI in R
+#Summary Fst checking for CI no mitochondria 
 
-# 18 per-chromosome Fst values (column 3, the one giving 0.069)
-fst_chrom <- c(0.076772,0.047276,0.069387,0.078374,0.066238,0.049785,
-               0.056196,0.058256,0.088475,0.075211,0.077685,0.065401,
-               0.084756,0.068958,0.057955,0.072826,0.062575,0.097436)
-
-cat("n:", length(fst_chrom),
-    " mean:", round(mean(fst_chrom),4),
-    " sd:", round(sd(fst_chrom),4), "\n")
-
-set.seed(1)
-dist <- replicate(10000, mean(sample(fst_chrom, length(fst_chrom), replace=TRUE)))
-print(round(quantile(dist, c(0.025, 0.5, 0.975)), 4))
-
-# BCa version via boot, for a more principled interval at n=18
 library(boot)
-b <- boot(fst_chrom, function(d,i) mean(d[i]), R=10000)
-print(boot.ci(b, type=c("perc","bca")))
 
+fst <- read.csv("~/Downloads/Diacarnus0526_shallow_mesophotic_fst.txt", sep="")
+# --- filtering ---
+# keep only OZ nuclear contigs; drop mitochondrion OZ024687.1
+fst <- fst[grepl("^OZ", fst$chromosome) & fst$chromosome != "OZ024687.1", ]
+# valid Fst values (keep negatives; drop NA)
+fst <- fst[!is.na(fst$avg_wc_fst), ]
 
+# --- SNP-count threshold (the consequential choice) ---
+# windows with 1-4 SNPs contribute noise-zeros; require a minimum.
+min_snps <- 5
+f <- fst[fst$no_snps >= min_snps, ]
+
+cat("windows total:", nrow(fst), " kept (>=", min_snps, "SNPs):", nrow(f), "\n")
+cat("mean Fst all windows:", round(mean(fst$avg_wc_fst),4),
+    " | filtered:", round(mean(f$avg_wc_fst),4), "\n")
+
+# --- window bootstrap ---
+mean_fst <- function(d, i) mean(d$avg_wc_fst[i], na.rm=TRUE)
+set.seed(1)
+bw <- boot(f, mean_fst, R=10000)
+cat("\nWindow bootstrap:\n"); print(boot.ci(bw, type=c("perc","bca")))
+
+# --- chromosome block bootstrap (more honest given LD within chroms) ---
+chroms <- split(f, f$chromosome)
+cat("n chromosomes:", length(chroms), "\n")
+boot_chrom <- function() {
+  samp <- sample(names(chroms), length(chroms), replace=TRUE)
+  mean(sapply(samp, function(c) mean(chroms[[c]]$avg_wc_fst, na.rm=TRUE)))
+}
+set.seed(1)
+dist <- replicate(10000, boot_chrom())
+cat("Chromosome block bootstrap:\n")
+print(quantile(dist, c(0.025, 0.5, 0.975)))
