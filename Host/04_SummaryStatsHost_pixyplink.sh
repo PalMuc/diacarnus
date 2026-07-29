@@ -74,3 +74,27 @@ plink \
 echo "PCA finished. Results in: ${OUTDIR}"
 echo "  Diacarnus_pca_mind.eigenvec  (sample scores)"
 echo "  Diacarnus_pca_mind.eigenval  (eigenvalues)"
+
+
+
+#Summary Fst only on OZ chromosomes and no mitochondria CI in R
+
+# 18 per-chromosome Fst values (column 3, the one giving 0.069)
+fst_chrom <- c(0.076772,0.047276,0.069387,0.078374,0.066238,0.049785,
+               0.056196,0.058256,0.088475,0.075211,0.077685,0.065401,
+               0.084756,0.068958,0.057955,0.072826,0.062575,0.097436)
+
+cat("n:", length(fst_chrom),
+    " mean:", round(mean(fst_chrom),4),
+    " sd:", round(sd(fst_chrom),4), "\n")
+
+set.seed(1)
+dist <- replicate(10000, mean(sample(fst_chrom, length(fst_chrom), replace=TRUE)))
+print(round(quantile(dist, c(0.025, 0.5, 0.975)), 4))
+
+# BCa version via boot, for a more principled interval at n=18
+library(boot)
+b <- boot(fst_chrom, function(d,i) mean(d[i]), R=10000)
+print(boot.ci(b, type=c("perc","bca")))
+
+
