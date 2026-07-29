@@ -79,38 +79,20 @@ echo "  Diacarnus_pca_mind.eigenval  (eigenvalues)"
 
 #Summary Fst checking for CI no mitochondria 
 
+
+library(dplyr)
 library(boot)
+fst <- read.table("~/Downloads/Diacarnus0526_shallow_mesophotic_fst.txt",
+                  header=TRUE, sep="\t", stringsAsFactors=FALSE) %>%
+  filter(grepl("^OZ", chromosome), chromosome != "OZ024687.1", !is.na(avg_wc_fst)) %>%
+  filter(no_snps >= 5)
 
-fst <- read.csv("~/Downloads/Diacarnus0526_shallow_mesophotic_fst.txt", sep="")
-# --- filtering ---
-# keep only OZ nuclear contigs; drop mitochondrion OZ024687.1
-fst <- fst[grepl("^OZ", fst$chromosome) & fst$chromosome != "OZ024687.1", ]
-# valid Fst values (keep negatives; drop NA)
-fst <- fst[!is.na(fst$avg_wc_fst), ]
+per_chrom <- fst %>% group_by(chromosome) %>%
+  summarise(chrom_fst = mean(avg_wc_fst), .groups="drop")
 
-# --- SNP-count threshold (the consequential choice) ---
-# windows with 1-4 SNPs contribute noise-zeros; require a minimum.
-min_snps <- 5
-f <- fst[fst$no_snps >= min_snps, ]
+cat("mean:", round(mean(per_chrom$chrom_fst),4),
+    " SD:", round(sd(per_chrom$chrom_fst),4), "\n")
 
-cat("windows total:", nrow(fst), " kept (>=", min_snps, "SNPs):", nrow(f), "\n")
-cat("mean Fst all windows:", round(mean(fst$avg_wc_fst),4),
-    " | filtered:", round(mean(f$avg_wc_fst),4), "\n")
-
-# --- window bootstrap ---
-mean_fst <- function(d, i) mean(d$avg_wc_fst[i], na.rm=TRUE)
 set.seed(1)
-bw <- boot(f, mean_fst, R=10000)
-cat("\nWindow bootstrap:\n"); print(boot.ci(bw, type=c("perc","bca")))
-
-# --- chromosome block bootstrap (more honest given LD within chroms) ---
-chroms <- split(f, f$chromosome)
-cat("n chromosomes:", length(chroms), "\n")
-boot_chrom <- function() {
-  samp <- sample(names(chroms), length(chroms), replace=TRUE)
-  mean(sapply(samp, function(c) mean(chroms[[c]]$avg_wc_fst, na.rm=TRUE)))
-}
-set.seed(1)
-dist <- replicate(10000, boot_chrom())
-cat("Chromosome block bootstrap:\n")
-print(quantile(dist, c(0.025, 0.5, 0.975)))
+b <- boot(per_chrom$chrom_fst, function(d,i) mean(d[i]), R=10000)
+print(boot.ci(b, type=c("perc","bca")))
