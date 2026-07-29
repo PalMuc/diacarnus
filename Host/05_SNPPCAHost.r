@@ -103,3 +103,20 @@ euclid    <- dist(pc_matrix, method = "euclidean")
 set.seed(1)  # reproducible permutations
 permanova <- adonis2(euclid ~ depth, data = eigenvectors, permutations = 9999)
 print(permanova)
+
+#Test that PCA is not driven by coverage differences
+
+cov <- data.frame(
+  sample = c("GW34916","GW34917","GW34918","GW34919","GW34920","GW34921",
+             "GW34922","GW34923","GW34924","GW34925","GW34926","GW34927",
+             "GW34928","GW34929","GW34930","GW34931","GW34932","GW34933","GW34934"),
+  mean_cov = c(6.84855,7.29631,3.90866,4.93968,6.98663,6.28008,
+               6.79648,3.69138,2.53356,3.80445,3.21863,2.71965,
+               2.93978,3.8784,3.49440,4.84000,4.37840,3.41079,4.75628)
+)
+m <- merge(df, cov, by.x="id", by.y="sample")
+nrow(m)   # should be 19 — if fewer, an ID didn't match
+
+wilcox.test(mean_cov ~ depth, data=m)
+summary(lm(PC1 ~ mean_cov, data=m))
+cor.test(m$PC1, m$mean_cov)
