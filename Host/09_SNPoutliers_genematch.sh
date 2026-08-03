@@ -4,6 +4,7 @@ library(readr)
 library(ggplot2)
 library(ggrepel)
 library(RColorBrewer)
+library(ggtext)
 
 ### 1. pcadapt and FDR (5%)
 
@@ -131,8 +132,10 @@ res_main <- res_main %>%
 axis_df <- chr_sizes %>%
   mutate(
     center = offset + chr_len / 2,
-    chr_label = gsub("^OZ0*", "", as.character(chrom)),
-    chr_label = gsub("\\.1$", "", chr_label)
+    chr_scaffold = gsub("^OZ0*", "", as.character(chrom)),
+    chr_scaffold = gsub("\\.1$", "", chr_scaffold),
+    chr_index = seq_len(n()),
+    chr_label = paste0("<b>", chr_index, "</b><br>(", chr_scaffold, ")")
   )
 
 ### 8. Add BUSCO annotation back onto all SNPs
@@ -184,31 +187,27 @@ names(chr_colors) <- chr_levels
 thr <- -log10(0.01)
 
 p_manhattan <- ggplot(res_main, aes(x = pos_cum, y = logp)) +
-  # all SNPs
   geom_point(
     aes(color = chrom),
     alpha = 0.45,
     size = 0.4
   ) +
-  # all FDR<0.05 outliers
   geom_point(
     data = res_main %>% filter(q < alpha),
     color = "grey",
     alpha = 0.75,
     size = 0.45
   ) +
-  # BUSCO-annotated outlier SNPs
   geom_point(
     data = res_main %>% filter(is_annotated_outlier),
     color = "#D55E00",
-    alpha = 0.95,
+    alpha = 0.7,
     size = 3
   ) +
-  # one label per gene
   geom_text_repel(
     data = label_df,
     aes(label = description_short),
-    size = 4.4,
+    size = 8,
     max.overlaps = Inf,
     box.padding = 0.25,
     point.padding = 0.15,
@@ -238,34 +237,18 @@ p_manhattan <- ggplot(res_main, aes(x = pos_cum, y = logp)) +
     panel.grid.major.x = element_blank(),
     panel.grid.minor = element_blank(),
     panel.grid.major.y = element_line(color = "grey90", linewidth = 0.25),
-    axis.title = element_text(face = "bold"),
-    axis.text.x = element_text(size = 8, color = "black"),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    axis.text.x = ggtext::element_markdown(
+      size = 15,
+      color = "black",
+      lineheight = 0.9,
+      margin = margin(t = 6)
+    ),
     axis.text.y = element_text(color = "black"),
     panel.border = element_rect(color = "black", linewidth = 0.6),
-    plot.margin = margin(5, 8, 5, 5)
+    plot.margin = margin(5, 8, 12, 5)
   )
 
 print(p_manhattan)
-
-### 12. Save figure
-
-ggsave(
-  "pcadapt_manhattan_BUSCO_annotated_FDR0.05.pdf",
-  plot = p_manhattan,
-  width = 10,
-  height = 5.5,
-  units = "in",
-  dpi = 300,
-  bg = "white"
-)
-
-ggsave(
-  "pcadapt_manhattan_BUSCO_annotated_FDR0.05.png",
-  plot = p_manhattan,
-  width = 10,
-  height = 5.5,
-  units = "in",
-  dpi = 600,
-  bg = "white"
-)
 
