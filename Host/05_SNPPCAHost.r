@@ -114,7 +114,7 @@ cov <- data.frame(
                6.79648,3.69138,2.53356,3.80445,3.21863,2.71965,
                2.93978,3.8784,3.49440,4.84000,4.37840,3.41079,4.75628)
 )
-m <- merge(df, cov, by.x="id", by.y="sample")
+m <- merge(eigenvectors, cov, by.x="IID", by.y="sample")
 nrow(m)   # should be 19 — if fewer, an ID didn't match
 
 wilcox.test(mean_cov ~ depth, data=m)
