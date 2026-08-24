@@ -160,7 +160,7 @@ write_tsv(
 low_ani_genomes <- unique(mags_below_any$genome)
 
 # Use the factor levels already in the plot
-gen_levels <- levels(summ_long_plot$genome)
+gen_levels <- levels(summ_long$genome)
 
 shade_df <- mags_below_any %>%
   mutate(
