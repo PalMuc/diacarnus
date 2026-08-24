@@ -160,7 +160,7 @@ p <- ggplot() +
     size = 6
   ) +
   scale_fill_gradientn(
-    colours = c("#f7f7f7", "#f1b6c1", "hotpink3", "brown1"),
+    colours = c("#f7f7f7", "#ABA300", "#7CAE00", "#0B1F0E"),
     values  = scales::rescale(c(0, 0.08, 0.177, 0.354)),
     limits  = c(0, max(ub, 0.354)),
     breaks  = c(0, 0.08, 0.177, 0.354),
@@ -195,8 +195,8 @@ p <- ggplot() +
   ) +
   scale_fill_manual(
     values = c(
-      Shallow = "lightblue",
-      Mesophotic = "purple3"
+      Shallow   = "#0072B2",  
+      Mesophotic = "#AA3377" 
     ),
     name = "Depth",
     guide = guide_legend(order = 2)
@@ -236,4 +236,5 @@ p <- ggplot() +
   )
 
 p
+
 
